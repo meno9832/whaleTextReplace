@@ -78,6 +78,9 @@ function transformText(text, settings) {
     }
   });
 
+  // 줄바꿈 문자 (\n, \r\n, \r)을 모두 제거
+  text = text.replace(/[\r\n]+/g, '');
+
   if (settings.prefixEnabled) {
     text = settings.prefixText + text;
     console.log("접두사 적용:", text);
@@ -144,11 +147,17 @@ document.addEventListener('paste', (event) => {
     .then(text => {
       fetchSettings()
         .then(settings => {
-          // 텍스트 변환
-          const transformedText = transformText(text, settings);
-          
-          // 변환된 텍스트를 붙여넣기
-          pasteText(transformedText);
+          // 설정에서 enabled가 true일 경우에만 변환 프로세스를 진행
+          if (settings.enabled) {
+            // 텍스트 변환
+            const transformedText = transformText(text, settings);
+            
+            // 변환된 텍스트를 붙여넣기
+            pasteText(transformedText);
+          } else {
+            // enabled가 false이면 기본 붙여넣기 동작
+            pasteText(text);
+          }
         })
         .catch(err => {
           console.error("설정을 불러오는 데 실패했습니다.", err);
@@ -158,3 +167,4 @@ document.addEventListener('paste', (event) => {
       console.error("클립보드에서 텍스트를 읽는 데 실패했습니다.", err);
     });
 });
+
