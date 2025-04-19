@@ -1,97 +1,123 @@
-const rulesContainer = document.getElementById("rulesContainer");
+document.addEventListener('DOMContentLoaded', () => {
+  // 저장된 설정을 불러오기
+  loadSettings()
+    .then(settings => {
+      // 불러온 설정을 폼에 채워넣기
+      document.getElementById('enabled').checked = settings.enabled;
+      document.getElementById('prefixText').value = settings.prefixText;
+      document.getElementById('prefixEnabled').checked = settings.prefixEnabled;
+      document.getElementById('suffixText').value = settings.suffixText;
+      document.getElementById('suffixEnabled').checked = settings.suffixEnabled;
 
-const defaultSettings = {
-  replaceRules: [
-    { from: "바보", to: "천재", enabled: true },
-    { from: "안녕", to: "Hello", enabled: true },
-    { from: "나빠", to: "좋아", enabled: false }
-  ],
-  prefixEnabled: false,
-  suffixEnabled: false,
-  prefixText: "[PREFIX]",
-  suffixText: "[SUFFIX]"
-};
+      // 텍스트 변경 항목들 불러오기
+      const changeTextContainer = document.getElementById('changeTextContainer');
+      settings.replaceRules.forEach(rule => {
+        addChangeTextItem(rule.from, rule.to, rule.enabled);
+      });
+    })
+    .catch(err => {
+      console.error('설정 불러오기 오류:', err);
+    });
 
-// 규칙 렌더링
-function renderRules(rules) {
-  rulesContainer.innerHTML = '';
+  // 저장 버튼 클릭 시 설정 저장
+  document.getElementById('saveSettings').addEventListener('click', () => {
+    const newSettings = {
+      enabled: document.getElementById('enabled').checked,
+      prefixText: document.getElementById('prefixText').value,
+      prefixEnabled: document.getElementById('prefixEnabled').checked,
+      suffixText: document.getElementById('suffixText').value,
+      suffixEnabled: document.getElementById('suffixEnabled').checked,
+      replaceRules: getReplaceRules() // 텍스트 변경 항목들 반환
+    };
 
-  rules.forEach((rule, index) => {
-    const div = document.createElement('div');
-    div.innerHTML = `
-      <input type="checkbox" ${rule.enabled ? 'checked' : ''} id="check${index}">
-      <input type="text" value="${rule.from}" id="from${index}" placeholder="변경 전">
-      =>
-      <input type="text" value="${rule.to}" id="to${index}" placeholder="변경 후">
-      <button id="delete${index}">삭제</button>
-    `;
-    rulesContainer.appendChild(div);
+    // 설정 저장
+    saveSettings(newSettings);
+  });
 
-    // 삭제 버튼 이벤트 연결
-    div.querySelector(`#delete${index}`).addEventListener("click", () => {
-      rules.splice(index, 1);
-      renderRules(rules);
+  // 텍스트 변경 항목 추가
+  document.getElementById('addChangeTextItem').addEventListener('click', () => {
+    addChangeTextItem();
+  });
+});
+
+// 설정을 chrome.storage.local에서 불러오는 함수
+function loadSettings() {
+  return new Promise((resolve, reject) => {
+    chrome.storage.sync.get(['settings'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error("저장소에서 설정을 가져오는 데 실패했습니다.", chrome.runtime.lastError);
+        resolve(defaultSettings); // 오류 발생 시 기본값 반환
+      } else {
+        if (result.settings) {
+          resolve(result.settings); // 저장된 설정 반환
+        } else {
+          resolve(defaultSettings); // 설정이 없다면 기본값 반환
+          alert("기본값 반환");
+        }
+      }
     });
   });
 }
 
-// 현재 DOM에서 규칙 읽기
-function getRulesFromDOM() {
-  const rules = [];
-  const divs = rulesContainer.querySelectorAll('div');
-  divs.forEach((div, i) => {
-    const enabled = div.querySelector(`#check${i}`).checked;
-    const from = div.querySelector(`#from${i}`).value.trim();
-    const to = div.querySelector(`#to${i}`).value.trim();
-    if (from && to) {
-      rules.push({ from, to, enabled });
+
+// 설정을 chrome.storage.local에 저장하는 함수
+function saveSettings(settings) {
+  chrome.storage.sync.set({ settings: settings }, function() {
+    if (chrome.runtime.lastError) {
+      console.error("설정 저장 중 오류 발생:", chrome.runtime.lastError);
+    } else {
+      alert('설정이 성공적으로 저장되었습니다.');
     }
   });
-  return rules;
 }
 
-// 저장 버튼 클릭 시
-document.getElementById("save").addEventListener("click", () => {
-  const settings = {
-    replaceRules: getRulesFromDOM(),
-    prefixEnabled: document.getElementById("prefixToggle").checked,
-    suffixEnabled: document.getElementById("suffixToggle").checked,
-    prefixText: document.getElementById("prefixText").value.trim(),
-    suffixText: document.getElementById("suffixText").value.trim()
-  };
 
-  chrome.storage.sync.set(settings, () => {
-    alert("저장 완료!");
-  });
-});
 
-// 규칙 추가 버튼 클릭 시
-document.getElementById("addRule").addEventListener("click", () => {
-  const current = getRulesFromDOM();
-  current.push({ from: "", to: "", enabled: true });
-  renderRules(current);
-});
+// 텍스트 변경 항목을 배열로 반환하는 함수
+function getReplaceRules() {
+  const replaceRules = [];
+  const changeTextItems = document.querySelectorAll('.change-text-item');
 
-// 설정 불러오기
-document.addEventListener("DOMContentLoaded", () => {
-  chrome.storage.sync.get(null, (data) => {
-    const merged = Object.assign({}, defaultSettings, data);
-    renderRules(merged.replaceRules);
-    document.getElementById("prefixToggle").checked = merged.prefixEnabled;
-    document.getElementById("suffixToggle").checked = merged.suffixEnabled;
-    document.getElementById("prefixText").value = merged.prefixText;
-    document.getElementById("suffixText").value = merged.suffixText;
-
-    // 텍스트박스 활성화 여부 동기화
-    toggleInputState();
+  changeTextItems.forEach(itemDiv => {
+    const from = itemDiv.querySelector('.from-text').value;
+    const to = itemDiv.querySelector('.to-text').value;
+    const enabled = itemDiv.querySelector('input[type="checkbox"]').checked;
+    replaceRules.push({ from, to, enabled });
   });
 
-  // 체크박스 변경 시 텍스트 입력창 활성화 상태 조절
-  document.getElementById("prefixToggle").addEventListener("change", toggleInputState);
-  document.getElementById("suffixToggle").addEventListener("change", toggleInputState);
-});
-
-function toggleInputState() {
-  document.getElementById("prefixText").disabled = !document.getElementById("prefixToggle").checked;
-  document.getElementById("suffixText").disabled = !document.getElementById("suffixToggle").checked;
+  return replaceRules;
 }
+
+// 텍스트 변경 항목을 추가하는 함수
+function addChangeTextItem(from = '', to = '', enabled = true) {
+  const changeTextContainer = document.getElementById('changeTextContainer');
+  
+  const itemDiv = document.createElement('div');
+  itemDiv.classList.add('change-text-item');
+  
+  itemDiv.innerHTML = `
+    <label>변경할 텍스트: <input type="text" class="from-text" value="${from}" /></label>
+    <label>변경 후 텍스트: <input type="text" class="to-text" value="${to}" /></label>
+    <label><input type="checkbox" class="enabled" ${enabled ? 'checked' : ''}> 적용 여부</label>
+    <button class="remove">삭제</button>
+  `;
+  
+  // 삭제 버튼 기능 추가
+  itemDiv.querySelector('.remove').addEventListener('click', () => {
+    changeTextContainer.removeChild(itemDiv);
+  });
+
+  changeTextContainer.appendChild(itemDiv);
+}
+
+// 기본 설정
+const defaultSettings = {
+  enabled: true,
+  prefixText: '접두사',
+  prefixEnabled: false,
+  suffixText: '접미사',
+  suffixEnabled: false,
+  replaceRules: [
+    { from: '이런거', to: '저런거', enabled: true }
+  ]
+};
