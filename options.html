@@ -1,21 +1,44 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>단어 자동 바꾸기 설정</title>
+  <title>옵션 설정</title>
+  <style>
+    .change-text-item {
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
-  <h2>단어 변환 목록</h2>
-  <div id="rulesContainer"></div>
-  <button id="addRule">+ 규칙 추가</button>
+  <h1>설정</h1>
 
-  <h2>접두어 / 접미어 설정</h2>
-  <label><input type="checkbox" id="prefixToggle"> 접두어 사용</label><br>
-  <input type="text" id="prefixText" placeholder="예: [앞에 붙일 말]"><br><br>
-  <label><input type="checkbox" id="suffixToggle"> 접미어 사용</label><br>
-  <input type="text" id="suffixText" placeholder="예: [뒤에 붙일 말]"><br><br>
+  <!-- 전체 적용 여부 -->
+  <label>
+    <input type="checkbox" id="enabled"> 전체 적용 여부
+  </label>
+  <br>
 
-  <button id="save">저장</button>
+  <!-- 접두사, 접미사 설정 -->
+  <div>
+    <h3>접두사/접미사</h3>
+    <label>접두사: <input type="text" id="prefixText" /></label>
+    <label><input type="checkbox" id="prefixEnabled"> 접두사 적용</label>
+    <br>
+    <label>접미사: <input type="text" id="suffixText" /></label>
+    <label><input type="checkbox" id="suffixEnabled"> 접미사 적용</label>
+  </div>
+
+  <!-- 텍스트 변경 항목 -->
+  <div id="changeTextContainer">
+    <h3>텍스트 변경 항목</h3>
+    <button id="addChangeTextItem">추가</button>
+    <!-- 추가된 항목들은 여기에 들어간다 -->
+  </div>
+
+  <br>
+
+  <!-- 저장 버튼 -->
+  <button id="saveSettings">저장</button>
 
   <script src="options.js"></script>
 </body>
