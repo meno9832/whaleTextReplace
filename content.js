@@ -114,22 +114,41 @@ function readClipboard() {
   });
 }
 
-// 텍스트를 붙여넣기 함수 (현재 활성화된 요소에 붙여넣기)
+// contenteditable 지원 붙여넣기 함수
+function pasteTextToContentEditable(text) {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const textNode = document.createTextNode(text);
+  range.insertNode(textNode);
+
+  // 커서를 텍스트 뒤로 이동
+  range.setStartAfter(textNode);
+  range.setEndAfter(textNode);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+
+// 붙여넣기 함수 (input, textarea, contenteditable)
 function pasteText(text) {
   const el = document.activeElement;
 
   if (el && typeof el.value !== 'undefined') {
-    // input/textarea에 텍스트 삽입
+    // input/textarea에 삽입
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const before = el.value.slice(0, start);
     const after = el.value.slice(end);
     el.value = before + text + after;
-
     const cursorPos = before.length + text.length;
     el.setSelectionRange(cursorPos, cursorPos);
+  } else if (el && el.isContentEditable) {
+    // contenteditable 지원
+    pasteTextToContentEditable(text);
   } else {
-    // execCommand fallback (일부 에디터 등에서 사용)
     try {
       document.execCommand("insertText", false, text);
     } catch (err) {
@@ -137,6 +156,7 @@ function pasteText(text) {
     }
   }
 }
+
 
 // 붙여넣기 이벤트 처리
 document.addEventListener('paste', (event) => {
