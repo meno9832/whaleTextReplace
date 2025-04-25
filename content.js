@@ -10,6 +10,10 @@ const defaultSettings = {
     { from: "이런거", to: "저런거", enabled: true }
   ]
 };
+let forcePlainPaste = false;
+
+
+
 
 // 저장된 설정을 가져오는 함수
 function fetchSettings() {
@@ -78,6 +82,14 @@ function transformText(text, settings) {
     }
   });
 
+  const targetWords = settings.replaceRules
+    .filter(rule => rule.enabled)
+    .map(rule => rule.to)
+    .filter(word => !!word); // null/undefined 방지
+
+  // 2. 조사 보정 실행
+  text = fixJosaForWords(text, targetWords);
+
   // 줄바꿈 문자 (\n, \r\n, \r)을 모두 제거
   text = text.replace(/[\r\n]+/g, '');
 
@@ -94,6 +106,7 @@ function transformText(text, settings) {
   return text;
 }
 
+// 이스케이프 문자 설정
 function escapeRegExp(str) {
   return str.replace(/[.*+?^=!:${}()|\[\]\/\\]/g, "\\$&");
 }
@@ -114,41 +127,23 @@ function readClipboard() {
   });
 }
 
-// contenteditable 지원 붙여넣기 함수
-function pasteTextToContentEditable(text) {
-  const selection = window.getSelection();
-  if (!selection.rangeCount) return;
 
-  const range = selection.getRangeAt(0);
-  range.deleteContents();
-  const textNode = document.createTextNode(text);
-  range.insertNode(textNode);
-
-  // 커서를 텍스트 뒤로 이동
-  range.setStartAfter(textNode);
-  range.setEndAfter(textNode);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
-
-// 붙여넣기 함수 (input, textarea, contenteditable)
+// 텍스트를 붙여넣기 함수 (현재 활성화된 요소에 붙여넣기)
 function pasteText(text) {
   const el = document.activeElement;
 
   if (el && typeof el.value !== 'undefined') {
-    // input/textarea에 삽입
+    // input/textarea에 텍스트 삽입
     const start = el.selectionStart;
     const end = el.selectionEnd;
     const before = el.value.slice(0, start);
     const after = el.value.slice(end);
     el.value = before + text + after;
+
     const cursorPos = before.length + text.length;
     el.setSelectionRange(cursorPos, cursorPos);
-  } else if (el && el.isContentEditable) {
-    // contenteditable 지원
-    pasteTextToContentEditable(text);
   } else {
+    // execCommand fallback (일부 에디터 등에서 사용)
     try {
       document.execCommand("insertText", false, text);
     } catch (err) {
@@ -157,6 +152,11 @@ function pasteText(text) {
   }
 }
 
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'v') {
+    forcePlainPaste = true;
+  }
+});
 
 // 붙여넣기 이벤트 처리
 document.addEventListener('paste', (event) => {
@@ -168,7 +168,10 @@ document.addEventListener('paste', (event) => {
       fetchSettings()
         .then(settings => {
           // 설정에서 enabled가 true일 경우에만 변환 프로세스를 진행
-          if (settings.enabled) {
+
+          const shouldTransform = settings.enabled && !forcePlainPaste;
+
+          if (shouldTransform) {
             // 텍스트 변환
             const transformedText = transformText(text, settings);
             
@@ -178,6 +181,8 @@ document.addEventListener('paste', (event) => {
             // enabled가 false이면 기본 붙여넣기 동작
             pasteText(text);
           }
+          // 사용 후 플래그 초기화
+          forcePlainPaste = false;
         })
         .catch(err => {
           console.error("설정을 불러오는 데 실패했습니다.", err);
@@ -188,3 +193,54 @@ document.addEventListener('paste', (event) => {
     });
 });
 
+
+
+
+
+
+// 받침 있는지 확인하는 함수
+function hasFinalConsonant(koreanChar) {
+  const code = koreanChar.charCodeAt(0) - 44032;
+  return code % 28 !== 0; //받침이 있으면 트루를 반환
+}
+
+// 조사 보정 함수
+function fixJosaForWords(sentence, targetWords) {
+  const josaTtoFFixMap = {  //받침 트루일 때 변환
+    "를": "을",
+    "가": "이",
+    "는": "은",
+    "와": "과",
+    "로": "으로",
+  };
+  
+  const josaFtoTFixMap = {
+    "을": "를",
+    "이": "가",
+    "은": "는",
+    "과": "와",
+    "으로": "로"
+  }
+
+  for (const word of targetWords) {
+    // 해당 단어 뒤에 붙은 조사들을 찾아서 변환
+    const josaRegex = new RegExp(`(${word})([${Object.keys(josaTtoFFixMap).join('')}|${Object.keys(josaFtoTFixMap).join('')}])`, 'g');
+
+    sentence = sentence.replace(josaRegex, (match, w, josa) => {
+      const lastChar = w[w.length - 1];
+      const hasBatchim = hasFinalConsonant(lastChar);
+
+      const isRieul = lastChar === 'ㄹ';
+
+      if (hasBatchim){
+        return w + josaTtoFFixMap[josa] || match;
+      }
+      else {
+        return w + josaFtoTFixMap[josa] || match;
+      }
+
+    });
+  }
+
+  return sentence;
+}
